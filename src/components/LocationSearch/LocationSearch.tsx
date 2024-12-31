@@ -1,36 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import type { Coordinates } from '../../types/address';
-import { initializeMapsApi } from '../../lib/googleMaps';
+import { LocationPermissionModal } from '../LocationPermissionModal/LocationPermissionModal';
 
 interface LocationSearchProps {
   onLocationSelect: (location: Coordinates) => void;
 }
 
 export function LocationSearch({ onLocationSelect }: LocationSearchProps) {
+  const [showPermissionModal, setShowPermissionModal] = useState(true);
   const [searchInput, setSearchInput] = useState('');
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    initializeMapsApi().then(() => {
-      if (!inputRef.current) return;
-
-      autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
-        types: ['address'],
-      });
-
-      autocompleteRef.current.addListener('place_changed', () => {
-        const place = autocompleteRef.current?.getPlace();
-        
-        if (place?.geometry?.location) {
-          onLocationSelect({
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-          });
-        }
-      });
-    });
-  }, [onLocationSelect]);
 
   const handleCurrentLocation = () => {
     if ('geolocation' in navigator) {
@@ -40,19 +18,24 @@ export function LocationSearch({ onLocationSelect }: LocationSearchProps) {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
+          setShowPermissionModal(false);
         },
         (error) => {
           console.error('Error getting location:', error);
+          setShowPermissionModal(true);
         }
       );
     }
+  };
+
+  const handleManualSearch = () => {
+    setShowPermissionModal(false);
   };
 
   return (
     <div className="space-y-4">
       <div className="relative">
         <input
-          ref={inputRef}
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
@@ -67,6 +50,12 @@ export function LocationSearch({ onLocationSelect }: LocationSearchProps) {
       >
         Use Current Location
       </button>
+
+      <LocationPermissionModal
+        isOpen={showPermissionModal}
+        onEnableLocation={handleCurrentLocation}
+        onManualSearch={handleManualSearch}
+      />
     </div>
   );
 }

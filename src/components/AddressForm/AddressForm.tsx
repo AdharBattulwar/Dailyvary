@@ -1,156 +1,144 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { HomeIcon, BuildingOfficeIcon, UserGroupIcon, MapPinIcon, StarIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import type { Address } from '../../types/address';
-import { supabase } from '../../lib/supabase';
+
+// Address validation schema
+const addressSchema = z.object({
+  houseNumber: z.string()
+    .min(1, 'House/Flat/Block number is required')
+    .max(50, 'House number is too long'),
+  apartment: z.string()
+    .min(1, 'Apartment/Road/Area is required')
+    .max(100, 'Address is too long'),
+  saveAs: z.enum(['home', 'office', 'friends', 'other']),
+  isFavorite: z.boolean().default(false),
+});
+
+type AddressFormData = z.infer<typeof addressSchema>;
 
 interface AddressFormProps {
-  address?: Partial<Address>;
-  coordinates?: { lat: number; lng: number };
-  onSubmit?: (address: Partial<Address>) => void;
+  selectedLocation: string;
+  onSubmit: (data: AddressFormData) => void;
+  onPreviewMap: () => void;
 }
 
-export function AddressForm({ address, coordinates, onSubmit }: AddressFormProps) {
-  const { register, handleSubmit, formState: { errors } } = useForm<Partial<Address>>({
-    defaultValues: {
-      ...address,
-      latitude: coordinates?.lat,
-      longitude: coordinates?.lng,
-    },
+export function AddressFormModal({ selectedLocation, onSubmit, onPreviewMap }: AddressFormProps) {
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<AddressFormData>({
+    resolver: zodResolver(addressSchema),
   });
 
-  const submitHandler = async (data: Partial<Address>) => {
+  const selectedSaveAs = watch('saveAs');
+  const isFavorite = watch('isFavorite');
+
+  const onFormSubmit = (data: AddressFormData) => {
     try {
-      const { error } = await supabase
-        .from('addresses')
-        .upsert({
-          ...data,
-          updated_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
-
+      onSubmit(data);
       toast.success('Address saved successfully!');
-      onSubmit?.(data);
     } catch (error) {
-      console.error('Error saving address:', error);
       toast.error('Failed to save address');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
-      <div>
-        <label htmlFor="label" className="block text-sm font-medium text-gray-700">
-          Label (e.g., Home, Work)
-        </label>
-        <input
-          type="text"
-          id="label"
-          {...register('label')}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="street" className="block text-sm font-medium text-gray-700">
-          Street Address *
-        </label>
-        <input
-          type="text"
-          id="street"
-          {...register('street', { required: true })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        />
-        {errors.street && (
-          <p className="mt-1 text-sm text-red-600">Street address is required</p>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="city" className="block text-sm font-medium text-gray-700">
-            City *
-          </label>
-          <input
-            type="text"
-            id="city"
-            {...register('city', { required: true })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-          {errors.city && (
-            <p className="mt-1 text-sm text-red-600">City is required</p>
-          )}
+    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center">
+          <MapPinIcon className="h-6 w-6 text-red-600 inline-block mr-2" />
+          <span className="font-medium">{selectedLocation}</span>
         </div>
-
-        <div>
-          <label htmlFor="state" className="block text-sm font-medium text-gray-700">
-            State *
-          </label>
-          <input
-            type="text"
-            id="state"
-            {...register('state', { required: true })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-          {errors.state && (
-            <p className="mt-1 text-sm text-red-600">State is required</p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700">
-            Postal Code *
-          </label>
-          <input
-            type="text"
-            id="postal_code"
-            {...register('postal_code', { required: true })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-          {errors.postal_code && (
-            <p className="mt-1 text-sm text-red-600">Postal code is required</p>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="country" className="block text-sm font-medium text-gray-700">
-            Country *
-          </label>
-          <input
-            type="text"
-            id="country"
-            {...register('country', { required: true })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-          {errors.country && (
-            <p className="mt-1 text-sm text-red-600">Country is required</p>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center">
-        <input
-          type="checkbox"
-          id="is_default"
-          {...register('is_default')}
-          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-        />
-        <label htmlFor="is_default" className="ml-2 block text-sm text-gray-900">
-          Set as default address
-        </label>
-      </div>
-
-      <div className="flex justify-end">
         <button
-          type="submit"
-          className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          type="button"
+          onClick={onPreviewMap}
+          className="text-sm text-red-600 hover:text-red-700"
         >
-          Save Address
+          Preview on Map
         </button>
       </div>
+
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="houseNumber" className="block text-sm font-medium text-gray-700">
+            HOUSE/FLAT/BLOCK NO.
+          </label>
+          <input
+            type="text"
+            id="houseNumber"
+            {...register('houseNumber')}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+          />
+          {errors.houseNumber && (
+            <p className="mt-1 text-sm text-red-600">{errors.houseNumber.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="apartment" className="block text-sm font-medium text-gray-700">
+            APARTMENT/ROAD/AREA
+          </label>
+          <input
+            type="text"
+            id="apartment"
+            {...register('apartment')}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+          />
+          {errors.apartment && (
+            <p className="mt-1 text-sm text-red-600">{errors.apartment.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            SAVE AS
+          </label>
+          <div className="grid grid-cols-4 gap-4">
+            {[
+              { value: 'home', icon: HomeIcon, label: 'Home' },
+              { value: 'office', icon: BuildingOfficeIcon, label: 'Office' },
+              { value: 'friends', icon: UserGroupIcon, label: 'Friends' },
+              { value: 'other', icon: MapPinIcon, label: 'Other' }
+            ].map(({ value, icon: Icon, label }) => (
+              <label
+                key={value}
+                className={`flex flex-col items-center p-3 border rounded-lg cursor-pointer ${
+                  selectedSaveAs === value ? 'border-red-600 bg-red-50' : 'border-gray-200'
+                }`}
+              >
+                <input
+                  type="radio"
+                  value={value}
+                  {...register('saveAs')}
+                  className="sr-only"
+                />
+                <Icon className="h-6 w-6" />
+                <span className="mt-1 text-sm">{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="isFavorite"
+            {...register('isFavorite')}
+            className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+          />
+          <label htmlFor="isFavorite" className="ml-2 block text-sm text-gray-900">
+            Save as Favorite
+          </label>
+          <StarIcon className={`h-5 w-5 ml-2 ${isFavorite ? 'text-yellow-400' : 'text-gray-400'}`} />
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        className="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition-colors"
+      >
+        Save Address
+      </button>
     </form>
   );
 }
